@@ -601,7 +601,7 @@ async function cargarFund() {
     cuotapartes: parseFloat(r.cuotapartes) || 0,
     navCierre:   parseFloat(r.nav_cierre)  || 0,
     pnCierre:    parseFloat(r.pn_cierre)   || 0,
-    feeAnual:    parseFloat(r.fee_anual)   || 0.0168,
+    feeAnual:    parseFloat(r.fee_anual)   || 0.012,
     pdfDate:     r.pdf_date || '',
   };
 }
@@ -812,7 +812,8 @@ const TIPO_COLORS = {
   'FCI MM USD': '#22D3EE', 'FCI MM ARS': '#34D399',
   'Fideicomiso': '#F472B6', 'Pagaré HD': '#22D3EE',
   'Money Market USD': '#22D3EE', 'Money Market ARS': '#34D399',
-  'Soberanos ARS': '#38BDF8', 'Otros': '#94A3B8',
+  'Tasa Fija ARS': '#38BDF8', 'CER': '#2DD4BF', 'Tamar': '#F59E0B',
+  'Dual Tamar/CER': '#A78BFA', 'Otros': '#94A3B8',
 };
 
 function dotColor(tipo) {
@@ -1688,14 +1689,23 @@ function autoSuggest(ticker, denom) {
   // Soberanos dólar linked (con D al final)
   if (/^(T\w+D|AL\w+D|AO\w+D)$/.test(t) && t.endsWith('D'))
     return { fuente: 'data912_arg_bonds', moneda: 'USD', lamina: 1, tipo: 'Soberano DL' };
-  // Soberanos ARS (letras, boncaps, boncer)
-  if (/^(M\d|T\d|TX|S\d|X\d|TTJ|TTS|TMG|TZX|TZV)/.test(t) && !t.endsWith('D'))
-    return { fuente: 'data912_arg_notes', moneda: 'ARS', lamina: 1, tipo: 'Soberanos ARS' };
+  // Duales TAMAR (TTM/TTJ/TTS/TTD)
+  if (/^TT[MJSD]/.test(t) && !t.endsWith('D'))
+    return { fuente: 'data912_arg_notes', moneda: 'ARS', lamina: 1, tipo: 'Dual Tamar/CER' };
+  // Bonos TAMAR (TMG…)
+  if (/^TMG/.test(t) || d.includes('TAMAR'))
+    return { fuente: 'data912_arg_notes', moneda: 'ARS', lamina: 1, tipo: 'Tamar' };
+  // CER (Boncer TZX/TX, letras CER X)
+  if ((/^(TZX|TX\d|X\d)/.test(t) || d.includes('BONCER') || d.includes('CER')) && !t.endsWith('D'))
+    return { fuente: 'data912_arg_notes', moneda: 'ARS', lamina: 1, tipo: 'CER' };
+  // Tasa Fija ARS (Lecaps S, Boncaps T, M)
+  if (/^(M\d|T\d|S\d)/.test(t) && !t.endsWith('D'))
+    return { fuente: 'data912_arg_notes', moneda: 'ARS', lamina: 1, tipo: 'Tasa Fija ARS' };
   // Money Market ARS
   if (d.includes('LIQUIDEZ PESOS') || d.includes('MONEY MARKET ARS') || d.includes('AHORRO PESOS'))
     return { fuente: 'calculo MM ars', moneda: 'ARS', lamina: 1, tipo: 'Money Market ARS' };
   // Money Market USD
-  if (/^(BALANDP|BAVSAP|BALAN|BAVSA|ADCAP|ALLARIA|ARGENFUNDS|IAM|TT)/.test(t) || d.includes('MONEY MARKET') || d.includes('LIQUIDEZ DOLAR'))
+  if (/^(BALANDP|BAVSAP|BALAN|BAVSA|ADCAP|ALLARIA|ARGENFUNDS|IAM)/.test(t) || d.includes('MONEY MARKET') || d.includes('LIQUIDEZ DOLAR'))
     return { fuente: 'calculo MM usd', moneda: 'USD', lamina: 1, tipo: 'Money Market USD' };
   // Pagares USD (UMV / cheques dólar)
   if (/^(UMV|#UMV|PAGARE)/.test(t) || d.includes('UMV') || d.includes('PAGARÉ'))
@@ -1720,16 +1730,16 @@ function showActivosCMS(nuevos, denomMap) {
   _cmsData = { nuevos, denomMap };
 
   const TIPO_LISTA = [
-    'Caución ARS','Caución USD',
-    'Commodities','Compra Call','Covered Call','Equity Argentina','Equity USA',
+    'Caución ARS','Caución USD','CER',
+    'Commodities','Compra Call','Covered Call','Dual Tamar/CER','Equity Argentina','Equity USA',
     'Futuro de Dólar',
     'Money Market ARS','Money Market USD','ON DL','ON HD','Otros',
     'Pagare ARS','Pagare USD','Short Equity','Short Renta Fija',
-    'Soberano DL','Soberano HD','Soberanos ARS','Venta Call',
+    'Soberano DL','Soberano HD','Tamar','Tasa Fija ARS','Venta Call',
   ];
   const CATEGORIA_LISTA = [
-    'Commodities','Compra Call','Covered Call','Equity','Futuro de Dólar','Liquidez',
-    'Renta Fija','Short Equity','Short Renta Fija','Venta Call',
+    'CER','Commodities','Compra Call','Covered Call','Dual Tamar/CER','Equity','Futuro de Dólar','Liquidez',
+    'Renta Fija','Short Equity','Short Renta Fija','Tamar','Tasa Fija ARS','Venta Call',
   ];
   const FUENTE_LISTA = Object.keys(FUENTE_KIND);
 
@@ -1737,7 +1747,7 @@ function showActivosCMS(nuevos, denomMap) {
     const denom    = denomMap[h.ticker] || h.ticker;
     const s        = autoSuggest(h.ticker, denom);
     const tipoOpts = TIPO_LISTA.map(t => `<option value="${t}" ${t===s.tipo?'selected':''}>${t}</option>`).join('');
-    const catOpts  = CATEGORIA_LISTA.map(c => `<option value="${c}" ${(s.tipo==='Soberanos ARS'&&c==='Renta Fija')?'selected':''}>${c}</option>`).join('');
+    const catOpts  = CATEGORIA_LISTA.map(c => `<option value="${c}" ${(['CER','Tamar','Tasa Fija ARS','Dual Tamar/CER'].includes(s.tipo)&&c==='Renta Fija')?'selected':''}>${c}</option>`).join('');
     const fOpts    = FUENTE_LISTA.map(f => `<option value="${f}" ${f===s.fuente?'selected':''}>${f}</option>`).join('');
     return `
       <tr style="border-bottom:1px solid rgba(255,255,255,0.04)">
@@ -2090,8 +2100,8 @@ async function abrirEditarActivo(ticker) {
     a = arr[0] || {};
   } catch(e) {}
 
-  const TIPO_LISTA_ED = ['Caución ARS', 'Caución USD', 'Commodities', 'Compra Call', 'Covered Call', 'Equity Argentina', 'Equity USA', 'Futuro de Dólar', 'Money Market ARS', 'Money Market USD', 'ON DL', 'ON HD', 'Otros', 'Pagare ARS', 'Pagare USD', 'Short Equity', 'Short Renta Fija', 'Soberano DL', 'Soberano HD', 'Soberanos ARS', 'Venta Call'];
-  const CAT_LISTA_ED  = ['Commodities', 'Compra Call', 'Covered Call', 'Equity', 'Futuro de Dólar', 'Liquidez', 'Renta Fija', 'Short Equity', 'Short Renta Fija', 'Venta Call'];
+  const TIPO_LISTA_ED = ['Caución ARS', 'Caución USD', 'CER', 'Commodities', 'Compra Call', 'Covered Call', 'Dual Tamar/CER', 'Equity Argentina', 'Equity USA', 'Futuro de Dólar', 'Money Market ARS', 'Money Market USD', 'ON DL', 'ON HD', 'Otros', 'Pagare ARS', 'Pagare USD', 'Short Equity', 'Short Renta Fija', 'Soberano DL', 'Soberano HD', 'Tamar', 'Tasa Fija ARS', 'Venta Call'];
+  const CAT_LISTA_ED  = ['CER', 'Commodities', 'Compra Call', 'Covered Call', 'Dual Tamar/CER', 'Equity', 'Futuro de Dólar', 'Liquidez', 'Renta Fija', 'Short Equity', 'Short Renta Fija', 'Tamar', 'Tasa Fija ARS', 'Venta Call'];
   const FUENTE_LISTA_ED = Object.keys(FUENTE_KIND);
 
   const tipoOpts = TIPO_LISTA_ED.map(t => `<option value="${t}" ${t===a.tipo_activo?'selected':''}>${t}</option>`).join('');
