@@ -959,8 +959,8 @@ function renderFondo() {
   const holdings  = getHoldingsConCortes();
   const fondoMeta = state.meta || {};
   const moneda    = FUND.moneda || 'ARS';
-  const pos = rend > 1e-5, neg = rend < -1e-5;
-  const rendColor = pos ? '#38BDF8' : (neg ? '#D33A3F' : '#9A9AA0');
+  const neg = rend < -1e-5;
+  const rendColor = neg ? '#D33A3F' : '#2E9E2A'; // verde si ≥ 0, rojo si negativo
 
   const tiposUnicos  = [...new Set(holdings.map(h => fondoMeta[h.ticker]?.tipo).filter(Boolean))].sort();
   const catsUnicas   = [...new Set(holdings.map(h => fondoMeta[h.ticker]?.categoria).filter(Boolean))].sort();
