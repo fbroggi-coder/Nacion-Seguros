@@ -2072,8 +2072,9 @@ async function cargarActivosTabla() {
         <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#9A9AA0">${a.fuente_precio || ''}</td>
         <td style="font-family:'JetBrains Mono',monospace;font-size:11px">${a.lamina ?? ''}</td>
         <td style="font-family:'JetBrains Mono',monospace;font-size:11px">${a.base || ''}</td>
-        <td>
+        <td style="white-space:nowrap">
           <button onclick="abrirEditarActivo('${a.ticker}')" style="background:rgba(56,189,248,0.1);border:1px solid rgba(56,189,248,0.25);color:#38BDF8;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">Editar</button>
+          <button onclick="eliminarActivo('${a.ticker}')" style="background:rgba(211,58,63,0.12);border:1px solid rgba(211,58,63,0.3);color:#D33A3F;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;margin-left:6px">Eliminar</button>
         </td>
       </tr>`).join('');
 
@@ -2089,6 +2090,33 @@ async function cargarActivosTabla() {
       </table>`;
   } catch(e) {
     wrap.innerHTML = `<div class="center-msg" style="min-height:80px"><span style="color:#D33A3F">Error cargando activos: ${e.message}</span></div>`;
+  }
+}
+
+async function eliminarActivo(ticker) {
+  // Aviso extra si el activo sigue en la cartera actual
+  const enCartera = (state.holdings || []).some(h => h.ticker === ticker);
+  const msg = enCartera
+    ? `⚠ ${ticker} TODAVÍA ESTÁ EN LA CARTERA ACTUAL.\n\nSi lo eliminás, va a quedar sin tipo, categoría ni fuente de precio (se va a valuar al cierre del PDF, sin precio live).\n\n¿Eliminar igual?`
+    : `¿Eliminar ${ticker} del maestro de activos?\n\nSi vuelve a aparecer en un PDF futuro, se va a pedir cargarlo de nuevo.`;
+  if (!confirm(msg)) return;
+
+  try {
+    const r = await fetch(`${SB_URL}/${T_ACTIVOS}?ticker=eq.${encodeURIComponent(ticker)}`, {
+      method: 'DELETE',
+      headers: SB_HDR,
+    });
+    if (!r.ok && r.status !== 404) throw new Error('Error eliminando: ' + r.status + ' ' + await r.text());
+
+    // Limpiar meta en memoria (incluye alias por live_symbol)
+    const entry = state.meta[ticker];
+    delete state.meta[ticker];
+    if (entry?.liveSymbol && entry.liveSymbol !== ticker && state.meta[entry.liveSymbol] === entry) {
+      delete state.meta[entry.liveSymbol];
+    }
+    cargarActivosTabla();
+  } catch(e) {
+    alert('Error al eliminar: ' + e.message);
   }
 }
 
