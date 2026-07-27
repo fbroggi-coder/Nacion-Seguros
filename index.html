@@ -1520,6 +1520,38 @@ async function parsePDF(arrayBuffer) {
     console.log('[PDF] Holding:', ticker, '| cierre:', cierre, '| cant:', cantidad);
   }
 
+  // ── Plazos Fijos ────────────────────────────────────────────────────
+  const pfSecs = [
+    { pat: /Plazos\s+Fijos.*[Dd][oó]lares/i, sufijo: '_USD' },
+    { pat: /Plazos\s+Fijos.*Pesos/i,          sufijo: '_ARS' },
+  ];
+  const pfCount = {};
+  for (const { pat, sufijo } of pfSecs) {
+    const secIdx = lines.findIndex(l => pat.test(l.text));
+    if (secIdx < 0) continue;
+    console.log('[PDF] Sección Plazos Fijos', sufijo, 'en línea:', secIdx);
+    for (let i = secIdx + 1; i < Math.min(secIdx + 60, lines.length); i++) {
+      const lt = lines[i].text.trim();
+      if (!lt) continue;
+      if (/^(Aperturas|FONDO COMUN|Inversiones|PUBLICA|PRIVADA|Clase\s|\(\d\))/i.test(lt)) break;
+      // Datos: primera palabra = nombre de entidad en MAYÚSCULAS; subtotales empiezan con dígito
+      const firstWord = lt.split(/\s+/)[0];
+      if (!/^[A-Z]{3,}$/.test(firstWord)) continue;
+      const nums = [...lt.matchAll(numPat)].map(m => parseArNum(m[0])).filter(n => n > 0);
+      if (nums.length < 2) continue;
+      const total = nums[1]; // nums[0]=tasa, nums[1]=total
+      if (total <= 0) continue;
+      const base = 'PF_' + firstWord + sufijo;
+      const cnt = pfCount[base] = (pfCount[base] || 0) + 1;
+      let ticker = cnt === 1 ? base : base + '_' + cnt;
+      while (usedTickers.has(ticker)) ticker = base + '_' + (usedTickers.size + 1);
+      usedTickers.add(ticker);
+      res.denomMap[ticker] = 'Plazo Fijo ' + firstWord;
+      res.holdings.push({ ticker, cierre: total, cantidad: 1 });
+      console.log('[PDF] Plazo Fijo:', ticker, '| total:', total);
+    }
+  }
+
   // ── Cauciones / Aperturas ──────────────────────────────────────────
   const caucionSecs = [
     { pat: /Aperturas.*Cauciones.*[Dd][oó]lares/i, sufijo: '' },
